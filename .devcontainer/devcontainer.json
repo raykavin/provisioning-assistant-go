@@ -1,0 +1,40 @@
+{
+    "name": "ONTClimb DevContainer (Golang)",
+    "workspaceFolder": "/workspaces/app",
+    "dockerComposeFile": [
+        "../docker-compose.dev.yml"
+    ],
+    "service": "ontclimb",
+    "remoteUser": "vscode",
+    "postCreateCommand": "sh ./.devcontainer/post-create.sh",
+    "features": {
+        "ghcr.io/devcontainers/features/git:1": {}
+    },
+    "mounts": [
+        "source=${localWorkspaceFolder},target=/workspaces/app,type=bind,consistency=cached"
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "golang.Go",
+                "liuchao.go-struct-tag",
+                "yokoe.vscode-postfix-go",
+                "ms-ceintl.vscode-language-pack-pt-br",
+                "streetsidesoftware.code-spell-checker",
+                "streetsidesoftware.code-spell-checker-portuguese-brazilian",
+                "visualstudioexptteam.vscodeintellicode",
+                "redhat.vscode-yaml",
+                "teddyandturtle.fish",
+                "neonxp.gotools",
+                "tooltitudeteam.tooltitude"
+            ],
+            "settings": {
+                "terminal.integrated.defaultProfile.linux": "fish",
+                "go.toolsManagement.checkForUpdates": "local",
+                "go.useLanguageServer": true,
+                "go.gopath": "/go",
+                "go.goroot": "/usr/local/go"
+            }
+        }
+    }
+}

@@ -1,0 +1,43 @@
+services:
+  # postgres:
+  #   image: postgres:14.6
+  #   container_name: ontclimb_dev_postgres
+  #   networks:
+  #     - ontclimb_dev
+  #   volumes:
+  #     - ./.docker/postgres/data:/var/lib/postgresql/data
+  #     - ./.docker/postgres/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+  #   environment:
+  #     - TZ=America/Belem
+  #     - POSTGRES_USER=ontclimb
+  #     - POSTGRES_PASSWORD=Fo0#97oXggSQ
+  #     - POSTGRES_DB=ontclimb
+  #   ports:
+  #     - "5432:5432"
+  #   restart: on-failure
+
+  ontclimb:
+    build:
+      context: "."
+      target: development
+      dockerfile: "deploy/docker/Dockerfile.dev"
+    container_name: ontclimb_ontclimb_dev
+    working_dir: /workspaces/app
+    networks:
+      - ontclimb_dev
+    volumes:
+      - ./.docker/go/bin:/go/bin:rw
+      - ./.docker/go/pkg:/go/pkg:rw
+      - ./:/go/src/ontclimb:rw
+    environment:
+      - TZ=America/Belem
+    ports:
+      - "3000:3000"
+    # depends_on:
+      # - postgres
+    restart: on-failure
+    tty: true
+
+networks:
+  ontclimb_dev:
+    driver: bridge
