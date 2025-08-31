@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/jackc/pgx/v5"
@@ -21,7 +22,7 @@ type PostgresDB struct {
 	conn *pgx.Conn
 }
 
-func NewPostgres(ctx context.Context, dsn string) (DB, error) {
+func NewPostgres(ctx context.Context, dsn string) (*PostgresDB, error) {
 	conn, err := pgx.Connect(ctx, dsn)
 	if err != nil {
 		return nil, err
@@ -40,11 +41,15 @@ func (db *PostgresDB) QueryRowStruct(ctx context.Context, dest any, sql string, 
 		return err
 	}
 	defer rows.Close()
-	
+
+	if !rows.Next() {
+		return fmt.Errorf("not found")
+	}
+
 	return pgxscan.ScanRow(dest, rows)
 }
 
-func (db *PostgresDB) QueryStruct(ctx context.Context, dest interface{}, sql string, args ...any) error {
+func (db *PostgresDB) QueryStruct(ctx context.Context, dest any, sql string, args ...any) error {
 	rows, err := db.conn.Query(ctx, sql, args...)
 	if err != nil {
 		return err

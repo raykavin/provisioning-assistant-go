@@ -1,7 +1,10 @@
 // internal/core/domain/types.go
 package domain
 
-import "time"
+import (
+	"provisioning-assistant/internal/domain/dto"
+	"time"
+)
 
 // Events
 type MessageEvent struct {
@@ -37,20 +40,19 @@ type Button struct {
 type SessionState string
 
 const (
-	StateIdle              SessionState = "idle"
-	StateWaitingCPF        SessionState = "waiting_cpf"
-	StateMainMenu          SessionState = "main_menu"
-	StateServiceSelection  SessionState = "service_selection"
-	StateWaitingContract   SessionState = "waiting_contract"
-	StateWaitingSerial     SessionState = "waiting_serial"
-	StateConfirmData       SessionState = "confirm_data"
-	StateProvisioning      SessionState = "provisioning"
-	StateMaintenanceMenu   SessionState = "maintenance_menu"
-	StateWaitingOldSerial  SessionState = "waiting_old_serial"
-	StateAddressChange     SessionState = "address_change"
-	StateWaitingOLT        SessionState = "waiting_olt"
-	StateWaitingSlot       SessionState = "waiting_slot"
-	StateWaitingPort       SessionState = "waiting_port"
+	StateIdle             SessionState = "idle"
+	StateWaitingCPF       SessionState = "waiting_cpf"
+	StateMainMenu         SessionState = "main_menu"
+	StateServiceSelection SessionState = "service_selection"
+	StateWaitingProtocol  SessionState = "waiting_protocol"
+	StateConfirmData      SessionState = "confirm_data"
+	StateProvisioning     SessionState = "provisioning"
+	StateMaintenanceMenu  SessionState = "maintenance_menu"
+	StateWaitingOldSerial SessionState = "waiting_old_serial"
+	StateAddressChange    SessionState = "address_change"
+	StateWaitingOLT       SessionState = "waiting_olt"
+	StateWaitingSlot      SessionState = "waiting_slot"
+	StateWaitingPort      SessionState = "waiting_port"
 )
 
 // Service types
@@ -74,12 +76,12 @@ type Session struct {
 	UserID          int64
 	ChatID          int64
 	State           SessionState
-	CPF             string
+	UserTaxID       string
 	UserName        string
 	ServiceType     ServiceType
 	MaintenanceType MaintenanceType
-	Contract        string
-	SerialNumber    string
+	Protocol        string
+	ConnectionInfo  *dto.ConnectionInfo
 	OldSerialNumber string
 	OLT             string
 	Slot            string
@@ -109,12 +111,8 @@ type Equipment struct {
 	UpdatedAt    time.Time
 }
 
-// OLT options
-var OLTOptions = []string{
-	"PBS - A_MEXICO",
-	"PBS - B_HONDURAS_2",
-	"PBS - D_DINAMARCA_2",
-	"PBS - C_SURINAME",
-	"PBS - E_MANILA",
-	"PBS - A_AUSTRALIA",
+// ONU Signal Info
+type OnuSignalInfo struct {
+	TxPower string
+	RxPower string
 }

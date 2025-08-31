@@ -13,7 +13,13 @@ import (
 	"github.com/rs/zerolog/pkgerrors"
 )
 
-// Color scheme for components
+const (
+	maxMessageSize = 60
+	maxFileSize    = 22
+	maxLineSize    = 4
+	progressBarLen = 20
+)
+
 var (
 	timestampColor = color.New(color.FgHiCyan, color.Italic)
 	callerColor    = color.New(color.FgHiMagenta)
@@ -22,192 +28,6 @@ var (
 	fieldValColor  = color.New(color.FgCyan)
 )
 
-// consoleFormatter handles console output formatting
-type consoleFormatter struct {
-	config *Config
-}
-
-// formatLevel formats the log level
-func (f *consoleFormatter) formatLevel(i any) string {
-	levelStr, ok := i.(string)
-	if !ok {
-		return f.formatUnknownLevel()
-	}
-
-	level, exists := logLevels[levelStr]
-	if !exists {
-		return f.formatUnknownLevel()
-	}
-
-	emoji := ""
-	if f.config.UseEmoji {
-		emoji = level.Emoji + " "
-	}
-
-	return level.Color.Sprintf(" %s%s ", emoji, level.Text)
-}
-
-// formatUnknownLevel formats unknown levels
-func (f *consoleFormatter) formatUnknownLevel() string {
-	emoji := ""
-	if f.config.UseEmoji {
-		emoji = "❓ "
-	}
-	return color.New(color.FgHiWhite).Sprintf(" %sUNKN ", emoji)
-}
-
-// formatMessage formats the log message
-func (f *consoleFormatter) formatMessage(i any) string {
-	msg, ok := i.(string)
-	if !ok || len(msg) == 0 {
-		return messageColor.Sprint("│ (empty message)")
-	}
-
-	// Handle multiline messages
-	if strings.Contains(msg, "\n") {
-		return f.formatMultilineMessage(msg)
-	}
-
-	// Truncate and pad single line messages
-	if len(msg) > maxMessageSize {
-		msg = msg[:maxMessageSize]
-	} else {
-		msg = fmt.Sprintf("%-*s", maxMessageSize, msg)
-	}
-
-	return messageColor.Sprintf("│ %s", msg)
-}
-
-// formatMultilineMessage formats messages with multiple lines
-func (f *consoleFormatter) formatMultilineMessage(msg string) string {
-	lines := strings.Split(msg, "\n")
-	formatted := make([]string, len(lines))
-
-	for i, line := range lines {
-		formatted[i] = messageColor.Sprintf("│ %s", line)
-	}
-
-	return strings.Join(formatted, "\n")
-}
-
-// formatCaller formats the caller information
-func (f *consoleFormatter) formatCaller(i any) string {
-	fname, ok := i.(string)
-	if !ok || len(fname) == 0 {
-		return ""
-	}
-
-	caller := filepath.Base(fname)
-	parts := strings.Split(caller, ":")
-	if len(parts) != 2 {
-		return callerColor.Sprintf("┤ %s ├", caller)
-	}
-
-	file := f.formatFileName(parts[0])
-	line := f.formatLineNumber(parts[1])
-
-	return callerColor.Sprintf("┤ %s:%s ├", file, line)
-}
-
-// formatFileName formats the file name
-func (f *consoleFormatter) formatFileName(name string) string {
-	file := strings.TrimSuffix(name, ".go")
-	if len(file) > maxFileSize {
-		return file[:maxFileSize]
-	}
-	return fmt.Sprintf("%-*s", maxFileSize, file)
-}
-
-// formatLineNumber formats the line number
-func (f *consoleFormatter) formatLineNumber(line string) string {
-	if len(line) > maxLineSize {
-		return line[len(line)-maxLineSize:]
-	}
-	return fmt.Sprintf("%0*s", maxLineSize, line)
-}
-
-// formatTimestamp formats the timestamp
-func (f *consoleFormatter) formatTimestamp(i any) string {
-	strTime, ok := i.(string)
-	if !ok {
-		return timestampColor.Sprintf("[ %v ]", i)
-	}
-
-	ts, err := time.ParseInLocation(time.RFC3339, strTime, time.Local)
-	if err != nil {
-		return timestampColor.Sprintf("[ %s ]", strTime)
-	}
-
-	formatted := ts.In(time.Local).Format(f.config.DateTimeLayout)
-	return timestampColor.Sprintf("[ %s ]", formatted)
-}
-
-// formatFieldName formats field names
-func (f *consoleFormatter) formatFieldName(i any) string {
-	name, ok := i.(string)
-	if !ok {
-		return fmt.Sprintf("%v", i)
-	}
-	return fieldKeyColor.Sprint(name)
-}
-
-// formatFieldValue formats field values
-func (f *consoleFormatter) formatFieldValue(i any) string {
-	switch v := i.(type) {
-	case string:
-		// Only quote strings that contain special characters
-		if strings.ContainsAny(v, " \t\n\r\"'") {
-			return "=" + fieldValColor.Sprintf("%q", v)
-		}
-		return "=" + fieldValColor.Sprint(v)
-	case int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64:
-		return fieldValColor.Sprintf("=%d", v)
-	case float32, float64:
-		return fieldValColor.Sprintf("=%.2f", v)
-	case bool:
-		if v {
-			return "=" + color.HiGreenString("true")
-		}
-		return "=" + color.HiRedString("false")
-	case nil:
-		return "=" + color.HiBlackString("null")
-	default:
-		return fieldValColor.Sprintf("=%v", v)
-	}
-}
-
-// ZLogX wraps zerolog.Logger with enhanced functionality
-type ZLogX struct {
-	*zerolog.Logger
-	config *Config
-}
-
-// Config holds logger configuration
-type Config struct {
-	Level          string
-	DateTimeLayout string
-	Colored        bool
-	JSONFormat     bool
-	UseEmoji       bool
-}
-
-// logLevel represents a log level with its properties
-type logLevel struct {
-	Text  string
-	Emoji string
-	Color *color.Color
-}
-
-// Constants for formatting
-const (
-	maxMessageSize = 60
-	maxFileSize    = 22
-	maxLineSize    = 4
-	progressBarLen = 20
-)
-
-// Log levels definitions
 var logLevels = map[string]logLevel{
 	zerolog.LevelTraceValue: {
 		Text:  "TRAC",
@@ -246,7 +66,30 @@ var logLevels = map[string]logLevel{
 	},
 }
 
-// New creates a new Logger instance
+type logLevel struct {
+	Text  string
+	Emoji string
+	Color *color.Color
+}
+
+type Config struct {
+	Level          string
+	DateTimeLayout string
+	Colored        bool
+	JSONFormat     bool
+	UseEmoji       bool
+}
+
+type consoleFormatter struct {
+	config *Config
+}
+
+type ZLogX struct {
+	*zerolog.Logger
+	config *Config
+}
+
+// New creates a new enhanced logger instance
 func New(config *Config) (*ZLogX, error) {
 	if config == nil {
 		config = &Config{
@@ -258,17 +101,14 @@ func New(config *Config) (*ZLogX, error) {
 		}
 	}
 
-	// Setup error stack marshaler
 	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
 
-	// Parse log level
 	logMode, err := zerolog.ParseLevel(config.Level)
 	if err != nil {
-		return nil, fmt.Errorf("invalid log level: %w", err)
+		return nil, fmt.Errorf("nível de log inválido: %w", err)
 	}
 	zerolog.SetGlobalLevel(logMode)
 
-	// Create logger based on format
 	var logger zerolog.Logger
 	if config.JSONFormat {
 		logger = createJSONLogger(config)
@@ -276,7 +116,6 @@ func New(config *Config) (*ZLogX, error) {
 		logger = createConsoleLogger(config)
 	}
 
-	// Add caller information
 	logger = logger.With().CallerWithSkipFrameCount(3).Logger()
 
 	return &ZLogX{
@@ -285,7 +124,7 @@ func New(config *Config) (*ZLogX, error) {
 	}, nil
 }
 
-// createJSONLogger creates a JSON formatted logger
+// createJSONLogger creates a JSON formatted logger output
 func createJSONLogger(config *Config) zerolog.Logger {
 	return log.Output(zerolog.ConsoleWriter{
 		Out:           os.Stdout,
@@ -296,7 +135,7 @@ func createJSONLogger(config *Config) zerolog.Logger {
 	})
 }
 
-// createConsoleLogger creates a console formatted logger
+// createConsoleLogger creates a console formatted logger output
 func createConsoleLogger(config *Config) zerolog.Logger {
 	output := zerolog.ConsoleWriter{
 		Out:        os.Stdout,
@@ -306,7 +145,6 @@ func createConsoleLogger(config *Config) zerolog.Logger {
 	}
 
 	if config.Colored {
-		// Create formatter with config
 		formatter := &consoleFormatter{config: config}
 
 		output.FormatMessage = formatter.formatMessage
@@ -320,9 +158,154 @@ func createConsoleLogger(config *Config) zerolog.Logger {
 	return log.Output(output)
 }
 
-// Enhanced logging methods
+// formatLevel formats the log level with color and emoji
+func (f *consoleFormatter) formatLevel(i any) string {
+	levelStr, ok := i.(string)
+	if !ok {
+		return f.formatUnknownLevel()
+	}
 
-// Success logs a success message
+	level, exists := logLevels[levelStr]
+	if !exists {
+		return f.formatUnknownLevel()
+	}
+
+	emoji := ""
+	if f.config.UseEmoji {
+		emoji = level.Emoji + " "
+	}
+
+	return level.Color.Sprintf(" %s%s ", emoji, level.Text)
+}
+
+// formatUnknownLevel handles formatting for unrecognized log levels
+func (f *consoleFormatter) formatUnknownLevel() string {
+	emoji := ""
+	if f.config.UseEmoji {
+		emoji = "❓ "
+	}
+	return color.New(color.FgHiWhite).Sprintf(" %sUNKN ", emoji)
+}
+
+// formatMessage formats log messages with multiline support
+func (f *consoleFormatter) formatMessage(i any) string {
+	msg, ok := i.(string)
+	if !ok || len(msg) == 0 {
+		return messageColor.Sprint("│ (empty message)")
+	}
+
+	if strings.Contains(msg, "\n") {
+		return f.formatMultilineMessage(msg)
+	}
+
+	if len(msg) > maxMessageSize {
+		msg = msg[:maxMessageSize]
+	} else {
+		msg = fmt.Sprintf("%-*s", maxMessageSize, msg)
+	}
+
+	return messageColor.Sprintf("│ %s", msg)
+}
+
+// formatMultilineMessage handles messages spanning multiple lines
+func (f *consoleFormatter) formatMultilineMessage(msg string) string {
+	lines := strings.Split(msg, "\n")
+	formatted := make([]string, len(lines))
+
+	for i, line := range lines {
+		formatted[i] = messageColor.Sprintf("│ %s", line)
+	}
+
+	return strings.Join(formatted, "\n")
+}
+
+// formatCaller formats caller information with file and line number
+func (f *consoleFormatter) formatCaller(i any) string {
+	fname, ok := i.(string)
+	if !ok || len(fname) == 0 {
+		return ""
+	}
+
+	caller := filepath.Base(fname)
+	parts := strings.Split(caller, ":")
+	if len(parts) != 2 {
+		return callerColor.Sprintf("┤ %s ├", caller)
+	}
+
+	file := f.formatFileName(parts[0])
+	line := f.formatLineNumber(parts[1])
+
+	return callerColor.Sprintf("┤ %s:%s ├", file, line)
+}
+
+// formatFileName truncates and formats file names
+func (f *consoleFormatter) formatFileName(name string) string {
+	file := strings.TrimSuffix(name, ".go")
+	if len(file) > maxFileSize {
+		return file[:maxFileSize]
+	}
+	return fmt.Sprintf("%-*s", maxFileSize, file)
+}
+
+// formatLineNumber formats line numbers with padding
+func (f *consoleFormatter) formatLineNumber(line string) string {
+	if len(line) > maxLineSize {
+		return line[len(line)-maxLineSize:]
+	}
+	return fmt.Sprintf("%0*s", maxLineSize, line)
+}
+
+// formatTimestamp formats timestamps in local time
+func (f *consoleFormatter) formatTimestamp(i any) string {
+	strTime, ok := i.(string)
+	if !ok {
+		return timestampColor.Sprintf("[ %v ]", i)
+	}
+
+	ts, err := time.ParseInLocation(time.RFC3339, strTime, time.Local)
+	if err != nil {
+		return timestampColor.Sprintf("[ %s ]", strTime)
+	}
+
+	formatted := ts.In(time.Local).Format(f.config.DateTimeLayout)
+	return timestampColor.Sprintf("[ %s ]", formatted)
+}
+
+// formatFieldName formats field names with color
+func (f *consoleFormatter) formatFieldName(i any) string {
+	name, ok := i.(string)
+	if !ok {
+		return fmt.Sprintf("%v", i)
+	}
+	return fieldKeyColor.Sprint(name)
+}
+
+// formatFieldValue formats field values based on type
+func (f *consoleFormatter) formatFieldValue(i any) string {
+	switch v := i.(type) {
+	case string:
+		if strings.ContainsAny(v, " \t\n\r\"'") {
+			return "=" + fieldValColor.Sprintf("%q", v)
+		}
+		return "=" + fieldValColor.Sprint(v)
+	case int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64:
+		return fieldValColor.Sprintf("=%d", v)
+	case float32, float64:
+		return fieldValColor.Sprintf("=%.2f", v)
+	case bool:
+		if v {
+			return "=" + color.HiGreenString("true")
+		}
+		return "=" + color.HiRedString("false")
+	case nil:
+		return "=" + color.HiBlackString("null")
+	default:
+		return fieldValColor.Sprintf("=%v", v)
+	}
+}
+
+// Success logs a success message with optional emoji
 func (zl *ZLogX) Success(msg string) {
 	if zl.config.UseEmoji {
 		msg = "✅ " + msg
@@ -330,7 +313,7 @@ func (zl *ZLogX) Success(msg string) {
 	zl.Info().Msg(msg)
 }
 
-// Failure logs a failure message
+// Failure logs a failure message with optional emoji
 func (zl *ZLogX) Failure(msg string) {
 	if zl.config.UseEmoji {
 		msg = "❌ " + msg
@@ -338,7 +321,7 @@ func (zl *ZLogX) Failure(msg string) {
 	zl.Error().Msg(msg)
 }
 
-// Progress logs a progress update
+// Progress logs a progress update with visual progress bar
 func (zl *ZLogX) Progress(msg string, current, total int) {
 	percentage := float64(current) / float64(total) * 100
 	progressBar := zl.createProgressBar(int(percentage))
@@ -351,7 +334,7 @@ func (zl *ZLogX) Progress(msg string, current, total int) {
 		Msg(msg)
 }
 
-// Benchmark logs a benchmark result
+// Benchmark logs benchmark results with duration emoji
 func (zl *ZLogX) Benchmark(name string, duration time.Duration) {
 	msg := "Benchmark:"
 
@@ -365,7 +348,7 @@ func (zl *ZLogX) Benchmark(name string, duration time.Duration) {
 		Msgf("%s %s", msg, name)
 }
 
-// API logs an API request
+// API logs API requests with status-based coloring
 func (zl *ZLogX) API(method, path, remoteAddr string, statusCode int, duration time.Duration) {
 	level := zl.getStatusLevel(statusCode)
 	msg := "API Request"
@@ -386,7 +369,7 @@ func (zl *ZLogX) API(method, path, remoteAddr string, statusCode int, duration t
 		Msg(msg)
 }
 
-// WithContext creates a new logger with additional context
+// WithContext creates a new logger with additional context fields
 func (zl *ZLogX) WithContext(ctx map[string]any) *ZLogX {
 	event := zl.With()
 	for k, v := range ctx {
@@ -399,7 +382,7 @@ func (zl *ZLogX) WithContext(ctx map[string]any) *ZLogX {
 	}
 }
 
-// createProgressBar creates a visual progress bar
+// createProgressBar generates a visual progress bar
 func (zl *ZLogX) createProgressBar(percentage int) string {
 	filled := percentage * progressBarLen / 100
 
@@ -418,23 +401,23 @@ func (zl *ZLogX) createProgressBar(percentage int) string {
 	return bar.String()
 }
 
-// getDurationEmoji returns an emoji based on duration
+// getDurationEmoji returns emoji based on operation duration
 func (zl *ZLogX) getDurationEmoji(duration time.Duration) string {
 	switch {
 	case duration < time.Millisecond:
-		return "⚡" // Very fast
+		return "⚡"
 	case duration < 10*time.Millisecond:
-		return "🚀" // Fast
+		return "🚀"
 	case duration < 100*time.Millisecond:
-		return "🏃" // Medium
+		return "🏃"
 	case duration < time.Second:
-		return "🚶" // Slow
+		return "🚶"
 	default:
-		return "🐌" // Very slow
+		return "🐌"
 	}
 }
 
-// getStatusLevel returns the appropriate log level for HTTP status code
+// getStatusLevel returns appropriate log level for HTTP status codes
 func (zl *ZLogX) getStatusLevel(statusCode int) zerolog.Level {
 	switch {
 	case statusCode >= 200 && statusCode < 300:
@@ -450,7 +433,7 @@ func (zl *ZLogX) getStatusLevel(statusCode int) zerolog.Level {
 	}
 }
 
-// getStatusEmoji returns an emoji for HTTP status code
+// getStatusEmoji returns emoji for HTTP status codes
 func (zl *ZLogX) getStatusEmoji(statusCode int) string {
 	switch {
 	case statusCode >= 200 && statusCode < 300:

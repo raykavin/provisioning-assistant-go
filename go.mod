@@ -8,6 +8,7 @@ require (
 	github.com/go-telegram/bot v1.17.0
 	github.com/gookit/event v1.2.0
 	github.com/jackc/pgx/v5 v5.7.5
+	github.com/joho/godotenv v1.5.1
 	github.com/rs/zerolog v1.34.0
 )
 

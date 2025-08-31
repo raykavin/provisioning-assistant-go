@@ -3,7 +3,6 @@ package telegram
 import (
 	"context"
 	"fmt"
-	"log"
 	"provisioning-assistant/internal/domain"
 
 	"github.com/go-telegram/bot"
@@ -14,11 +13,15 @@ import (
 type Telegram struct {
 	bot          *bot.Bot
 	eventManager *event.Manager
+	logger       domain.Logger
 }
 
-func NewTelegram(token string, eventManager *event.Manager) (*Telegram, error) {
+// NewTelegram creates a new Telegram bot adapter with event integration
+func NewTelegram(token string, logger domain.Logger, eventManager *event.Manager) (*Telegram, error) {
 	opts := []bot.Option{
-		bot.WithDefaultHandler(defaultHandler),
+		bot.WithDefaultHandler(func(ctx context.Context, bot *bot.Bot, update *models.Update) {
+			logger.Warnf("Update não tratado: %+v", update)
+		}),
 	}
 
 	b, err := bot.New(token, opts...)
@@ -28,27 +31,28 @@ func NewTelegram(token string, eventManager *event.Manager) (*Telegram, error) {
 
 	adapter := &Telegram{
 		bot:          b,
+		logger:       logger,
 		eventManager: eventManager,
 	}
 
-	// Register bot handlers
 	adapter.registerHandlers()
-
-	// Register event listeners for responses
 	adapter.registerEventListeners()
 
 	return adapter, nil
 }
 
+// Start begins the Telegram bot polling process
 func (t *Telegram) Start(ctx context.Context) {
 	t.bot.Start(ctx)
 }
 
+// registerHandlers registers bot handlers for messages and callbacks
 func (t *Telegram) registerHandlers() {
 	t.bot.RegisterHandler(bot.HandlerTypeMessageText, "", bot.MatchTypePrefix, t.handleMessage)
 	t.bot.RegisterHandler(bot.HandlerTypeCallbackQueryData, "", bot.MatchTypePrefix, t.handleCallback)
 }
 
+// handleMessage processes incoming text messages from users
 func (t *Telegram) handleMessage(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update.Message == nil {
 		return
@@ -57,22 +61,20 @@ func (t *Telegram) handleMessage(ctx context.Context, b *bot.Bot, update *models
 	userID := update.Message.From.ID
 	chatID := update.Message.Chat.ID
 	text := update.Message.Text
+	t.logger.Infof("Mensagem recebida do usuário %d: %s", userID, text)
 
-	log.Printf("Received message from user %d: %s", userID, text)
-
-	// Create message event
 	msgEvent := &domain.MessageEvent{
 		UserID:  userID,
 		ChatID:  chatID,
 		Message: text,
 	}
 
-	// Emit event to core
 	t.eventManager.MustFire("telegram.message.received", event.M{
 		"event": msgEvent,
 	})
 }
 
+// handleCallback processes incoming callback queries from inline keyboards
 func (t *Telegram) handleCallback(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update.CallbackQuery == nil {
 		return
@@ -82,32 +84,29 @@ func (t *Telegram) handleCallback(ctx context.Context, b *bot.Bot, update *model
 	chatID := update.CallbackQuery.Message.Message.Chat.ID
 	data := update.CallbackQuery.Data
 
-	// Answer callback to remove loading state
-	b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+	_, _ = b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 		CallbackQueryID: update.CallbackQuery.ID,
 	})
 
-	log.Printf("Received callback from user %d: %s", userID, data)
+	t.logger.Infof("Callback recebido do usuário %d: %s", userID, data)
 
-	// Create callback event
 	callbackEvent := &domain.CallbackEvent{
 		UserID: userID,
 		ChatID: chatID,
 		Data:   data,
 	}
 
-	// Emit event to core
 	t.eventManager.MustFire("telegram.callback.received", event.M{
 		"event": callbackEvent,
 	})
 }
 
+// registerEventListeners registers event listeners for outgoing messages and actions
 func (t *Telegram) registerEventListeners() {
-	// Listen for send message events from core
 	t.eventManager.On("telegram.send.message", event.ListenerFunc(func(e event.Event) error {
 		data, ok := e.Get("response").(*domain.MessageResponse)
 		if !ok {
-			return fmt.Errorf("invalid message response type")
+			return fmt.Errorf("tipo de resposta de mensagem inválido")
 		}
 
 		params := &bot.SendMessageParams{
@@ -115,25 +114,23 @@ func (t *Telegram) registerEventListeners() {
 			Text:   data.Text,
 		}
 
-		// Add keyboard if provided
 		if data.Keyboard != nil {
 			params.ReplyMarkup = t.buildKeyboard(data.Keyboard)
 		}
 
 		_, err := t.bot.SendMessage(context.Background(), params)
 		if err != nil {
-			log.Printf("Error sending message: %v", err)
+			t.logger.Errorf("Erro ao enviar mensagem: %v", err)
 			return err
 		}
 
 		return nil
 	}))
 
-	// Listen for typing action events
 	t.eventManager.On("telegram.send.typing", event.ListenerFunc(func(e event.Event) error {
 		chatID, ok := e.Get("chatID").(int64)
 		if !ok {
-			return fmt.Errorf("invalid chatID type")
+			return fmt.Errorf("tipo de chatID inválido")
 		}
 
 		_, err := t.bot.SendChatAction(context.Background(), &bot.SendChatActionParams{
@@ -142,7 +139,7 @@ func (t *Telegram) registerEventListeners() {
 		})
 
 		if err != nil {
-			log.Printf("Error sending typing action: %v", err)
+			t.logger.Errorf("Erro ao enviar ação de digitação: %v", err)
 			return err
 		}
 
@@ -150,6 +147,7 @@ func (t *Telegram) registerEventListeners() {
 	}))
 }
 
+// buildKeyboard converts domain keyboard to Telegram keyboard markup
 func (t *Telegram) buildKeyboard(keyboard *domain.Keyboard) models.ReplyMarkup {
 	if keyboard.Inline {
 		var rows [][]models.InlineKeyboardButton
@@ -168,7 +166,6 @@ func (t *Telegram) buildKeyboard(keyboard *domain.Keyboard) models.ReplyMarkup {
 		}
 	}
 
-	// Reply keyboard
 	var rows [][]models.KeyboardButton
 	for _, row := range keyboard.Buttons {
 		var buttons []models.KeyboardButton
@@ -183,9 +180,4 @@ func (t *Telegram) buildKeyboard(keyboard *domain.Keyboard) models.ReplyMarkup {
 		Keyboard:       rows,
 		ResizeKeyboard: true,
 	}
-}
-
-func defaultHandler(ctx context.Context, b *bot.Bot, update *models.Update) {
-	// Default handler for unhandled updates
-	log.Printf("Unhandled update: %+v", update)
 }
