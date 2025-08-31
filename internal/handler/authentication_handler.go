@@ -32,9 +32,9 @@ func NewAuthenticationHandler(
 
 // HandleCPFInput processes CPF input for user authentication
 func (h *AuthenticationHandler) HandleCPFInput(session *domain.Session, msg *domain.MessageEvent) error {
-	cpf := h.sanitizeCPF(msg.Message)
+	taxID := h.sanitizeTaxID(msg.Message)
 
-	if !h.isValidCPFFormat(cpf) {
+	if !h.isValidCPFFormat(taxID) {
 		return h.messenger.SendMessage(msg.ChatID, MSG_CPF_INVALID)
 	}
 
@@ -42,8 +42,8 @@ func (h *AuthenticationHandler) HandleCPFInput(session *domain.Session, msg *dom
 
 	time.Sleep(TIMEOUT_CPF_VALIDATION)
 
-	if err := h.authenticateUser(session, cpf); err != nil {
-		h.logger.WithError(err).WithField("cpf", cpf).Debug("Falha na autenticação do CPF")
+	if err := h.authenticateUser(session, taxID); err != nil {
+		h.logger.WithError(err).WithField("taxID", taxID).Debug("Falha na autenticação do CPF")
 		session.State = domain.StateWaitingCPF
 		h.sessionService.UpdateSession(session)
 		return h.messenger.SendMessage(msg.ChatID, MSG_CPF_UNAUTHORIZED)
@@ -64,8 +64,7 @@ func (h *AuthenticationHandler) authenticateUser(session *domain.Session, taxID 
 	session.State = domain.StateMainMenu
 	h.sessionService.UpdateSession(session)
 
-	h.logger.
-		WithField("tax_id", taxID).
+	h.logger.WithField("tax_id", taxID).
 		WithField("username", user.Name).
 		WithField("chat_id", session.ChatID).
 		Info("Usuário autenticado com sucesso")
@@ -87,17 +86,17 @@ func (h *AuthenticationHandler) sendMainMenu(session *domain.Session) error {
 	return h.messenger.SendMessageWithKeyboard(session.ChatID, message, keyboard)
 }
 
-// sanitizeCPF removes formatting characters from CPF string
-func (h *AuthenticationHandler) sanitizeCPF(cpf string) string {
-	cpf = strings.ReplaceAll(cpf, ".", "")
-	cpf = strings.ReplaceAll(cpf, "-", "")
-	cpf = strings.TrimSpace(cpf)
-	return cpf
+// sanitizeTaxID removes formatting characters from tax id string
+func (h *AuthenticationHandler) sanitizeTaxID(taxID string) string {
+	taxID = strings.ReplaceAll(taxID, ".", "")
+	taxID = strings.ReplaceAll(taxID, "-", "")
+	taxID = strings.TrimSpace(taxID)
+	return taxID
 }
 
 // isValidCPFFormat checks if CPF has exactly 11 digits
-func (h *AuthenticationHandler) isValidCPFFormat(cpf string) bool {
-	return len(cpf) == 11
+func (h *AuthenticationHandler) isValidCPFFormat(taxID string) bool {
+	return len(taxID) == 11
 }
 
 // Logout clears the user session and returns to idle state

@@ -38,11 +38,12 @@ func (s *ErpService) GetConnectionInfo(ctx context.Context, protocol string) (*d
 		return nil, fmt.Errorf("informações de conexão incompletas: número de série do equipamento ausente")
 	}
 
-	s.logger.WithFields(map[string]any{
-		"protocol": protocol,
-		"contract": connInfo.ContractDescription,
-		"olt_ip":   connInfo.ConnectionOltIP,
-	}).Info("Informações de conexão obtidas com sucesso")
+	s.logger.
+		WithFields(map[string]any{
+			"protocol": protocol,
+			"contract": connInfo.ContractDescription,
+			"olt_ip":   connInfo.ConnectionOltIP,
+		}).Info("Informações de conexão obtidas com sucesso")
 
 	return connInfo, nil
 }

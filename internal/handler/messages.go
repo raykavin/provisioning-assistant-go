@@ -5,9 +5,9 @@ import "time"
 // Message constants for the bot
 const (
 	// Welcome and authentication messages
-	MSG_WELCOME = "🤖 Bot de Provisionamento (Teste)\n\n" +
-		"Para continuar, preciso verificar sua identidade.\n" +
-		"Por favor, digite seu CPF (apenas números):"
+	MSG_WELCOME = `Assistente de provisionamento - Fibralink
+	Para continuar, preciso verificar sua identidade.
+	Por favor, digite seu CPF (apenas números):`
 
 	MSG_CPF_INVALID = "❌ CPF inválido. Digite apenas os 11 dígitos do CPF."
 
