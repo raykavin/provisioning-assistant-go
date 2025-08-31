@@ -112,8 +112,6 @@ func (h *ProvisioningHandler) HandleConfirmation(session *domain.Session, confir
 		if err := h.handleConfirmationDenied(session); err != nil {
 			return err
 		}
-
-		return  h.
 	}
 
 	return h.executeProvisioning(session)
